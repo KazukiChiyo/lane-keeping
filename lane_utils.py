@@ -86,7 +86,7 @@ def color_thresh(image, r_thresh=(0, 255), s_thresh=(0, 255)):
 
 def find_lane_pixels(binary_warped, nwindows, margin, minpix):
     # Take a histogram of the bottom half of the image
-    histogram = np.sum(binary_warped[binary_warped.shape[0]//2:,:], axis=0)
+    histogram = np.sum(binary_warped[np.int32(binary_warped.shape[0]*0.7):,:], axis=0)
     # plt.plot(histogram)
     # plt.show()
 
@@ -147,8 +147,9 @@ def find_lane_pixels(binary_warped, nwindows, margin, minpix):
         print()
 
         # Save results to x, y arrays
-        x_array.append(x)
-        y_array.append(y)
+        if np.std(y) >= 50:
+            x_array.append(x)
+            y_array.append(y)
 
     return x_array, y_array, out_img
 
@@ -253,7 +254,7 @@ if __name__ == '__main__':
     # Read images
     # straight = mpimg.imread('test_images/straight_lines1.jpg')
     # image = mpimg.imread('test_images/test4.jpg')
-    image = mpimg.imread('test_images/test6.jpg')
+    image = mpimg.imread('test_images/extracted-0.7.jpg')
     # np.set_printoptions(edgeitems=30, linewidth=100000, formatter=dict(float=lambda x: "%.3g" % x))
 
     # Read in the saved objpoints and imgpoints
