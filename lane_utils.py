@@ -5,7 +5,7 @@ import scipy.misc
 import numpy as np
 # import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
-# from moviepy.editor import VideoFileClip
+from moviepy.editor import VideoFileClip
 
 
 def image_unwrap(image, objpoints, imgpoints, src, dst):
@@ -38,7 +38,7 @@ def abs_sobel_thresh(gray, orient='x', sobel_kernel=3, thresh=(0, 255)):
     grad_binary[(scaled_sobel >= thresh[0]) & (scaled_sobel <= thresh[1])] = 1
     return grad_binary
 
-def mag_thresh(gray, sobel_kernel=3, mag_thresh=(0, 255)):
+def mag_gradient_thresh(gray, sobel_kernel=3, mag_thresh=(0, 255)):
     # Calculate gradient magnitude
     sobelx = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=sobel_kernel)
     sobely = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=sobel_kernel)
@@ -51,7 +51,7 @@ def mag_thresh(gray, sobel_kernel=3, mag_thresh=(0, 255)):
     mag_binary[(gradmag >= mag_thresh[0]) & (gradmag <= mag_thresh[1])] = 1
     return mag_binary
 
-def dir_thresh(gray, sobel_kernel=3, thresh=(0, np.pi/2)):
+def dir_gradient_thresh(gray, sobel_kernel=3, thresh=(0, np.pi/2)):
     # Calculate gradient direction
     sobelx = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=sobel_kernel)
     sobely = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=sobel_kernel)
@@ -64,25 +64,43 @@ def dir_thresh(gray, sobel_kernel=3, thresh=(0, np.pi/2)):
 
 def color_thresh(image, r_thresh=(0, 255), s_thresh=(0, 255)):
     # Convert image to hls
-    # hls = cv2.cvtColor(image, cv2.COLOR_RGB2HLS)
+    hls = cv2.cvtColor(image, cv2.COLOR_RGB2HLS)
     r_channel = image[:,:,0]
-    # s_channel = hls[:,:,2]
+    s_channel = hls[:,:,2]
 
     # Apply R channel threshold
     r_image = np.zeros_like(r_channel)
-    r_image[(r_channel >= r_thresh[0]) & (r_channel <= r_thresh[1])] = 1
-    # scipy.misc.imsave('output_images/out_rthresh.png', r_image)
+    r_image[(r_channel >= r_thresh[0]) & (r_channel <= r_thresh[1])] = 255
+    scipy.misc.imsave('output_images/out_rthresh.png', r_image)
 
     # Apply S channel threshold
-    # s_image = np.zeros_like(s_channel)
-    # s_image[(s_channel >= s_thresh[0]) & (s_channel <= s_thresh[1])] = 255
-    # scipy.misc.imsave('output_images/out_sthresh.png', s_image)
+    s_image = np.zeros_like(s_channel)
+    s_image[(s_channel >= s_thresh[0]) & (s_channel <= s_thresh[1])] = 255
+    scipy.misc.imsave('output_images/out_sthresh.png', s_image)
+
+    # Apply HLS channel
+    # define the list of boundaries
+    lower_white = np.uint8([0,200,0])
+    upper_white = np.uint8([255,255,255])
+    lower_yellow = np.array([20,120,80])
+    upper_yellow = np.array([45,200,255])
+    # lower_yellow = np.uint8([10,0,100])
+    # upper_yellow = np.uint8([40,255,255])
+    # apply masks
+    mask_white = cv2.inRange(hls, lower_white, upper_white)
+    mask_yellow = cv2.inRange(hls, lower_yellow, upper_yellow)
+    mask = cv2.bitwise_or(mask_white, mask_yellow)
+    # Bitwise-AND mask and original image
+    hls_image = cv2.bitwise_and(image, image, mask = mask)
+    hls_image = cv2.cvtColor(hls_image, cv2.COLOR_RGB2GRAY)
+    scipy.misc.imsave('output_images/out_hlsthresh.png', hls_image)
+
 
     # Apply both channel threshold
     # rs_image = np.zeros_like(r_channel)
     # rs_image[((r_channel>=r_thresh[0]) & (r_channel<=r_thresh[1])) | ((s_channel>=s_thresh[0]) & (s_channel<=s_thresh[1]))] = 255
     # scipy.misc.imsave('output_images/out_rsthresh.png', rs_image)
-    return r_image
+    return hls_image
 
 def find_lane_pixels(binary_warped, nwindows, margin, minpix):
     # Take a histogram of the bottom half of the image
@@ -111,7 +129,7 @@ def find_lane_pixels(binary_warped, nwindows, margin, minpix):
     y_array = []
 
     for peak in peaks:
-        print(peak)
+        # print(peak)
         lane_inds = []
         # Step through the windows one by one
         for window in range(nwindows):
@@ -122,8 +140,8 @@ def find_lane_pixels(binary_warped, nwindows, margin, minpix):
             win_x_high = peak + margin
 
             # Draw the windows on the visualization image
-            cv2.rectangle(out_img,(win_x_low,win_y_low),
-            (win_x_high,win_y_high),(0,255,0), 5)
+            # cv2.rectangle(out_img,(win_x_low,win_y_low),
+            # (win_x_high,win_y_high),(0,255,0), 5)
 
             # Identify the nonzero pixels in x and y within the window #
             good_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) &
@@ -142,9 +160,9 @@ def find_lane_pixels(binary_warped, nwindows, margin, minpix):
         # Extract left and right line pixel positions
         x = nonzerox[lane_inds]
         y = nonzeroy[lane_inds]
-        print("x std", np.std(x))
-        print("y std", np.std(y))
-        print()
+        # print("x std", np.std(x))
+        # print("y std", np.std(y))
+        # print()
 
         # Save results to x, y arrays
         if np.std(y) >= 50:
@@ -183,13 +201,13 @@ def _detect_lanes(image, src, dst, abs_kernel, abs_thresh, mag_kernel, mag_thres
     unwrap, perspective_M, rev_M = image_unwrap(image, objpoints, imgpoints, src, dst)
 
     # Gray scale image
-    # gray = cv2.cvtColor(unwrap, cv2.COLOR_RGB2GRAY)
+    gray = cv2.cvtColor(unwrap, cv2.COLOR_RGB2GRAY)
 
     # Apply each of the thresholding functions
-    # gradx = abs_sobel_thresh(gray, orient='x', sobel_kernel=3, thresh=(20, 100))
-    # grady = abs_sobel_thresh(gray, orient='y', sobel_kernel=3, thresh=(20, 100))
-    # mag_binary = mag_thresh(gray, sobel_kernel=9, mag_thresh=(30, 100))
-    # dir_binary = dir_thresh(gray, sobel_kernel=15, thresh=(-np.pi/20, np.pi/20))
+    # gradx = abs_sobel_thresh(gray, orient='x', sobel_kernel=abs_kernel, thresh=abs_thresh)
+    # grady = abs_sobel_thresh(gray, orient='y', sobel_kernel=abs_kernel, thresh=abs_thresh)
+    # mag_binary = mag_gradient_thresh(gray, sobel_kernel=mag_kernel, mag_thresh=mag_thresh)
+    # dir_binary = dir_gradient_thresh(gray, sobel_kernel=dir_kernel, thresh=dir_thresh)
     color_image = color_thresh(unwrap, r_thresh=r_thresh, s_thresh=s_thresh)
 
     # Combination of different thresholds
@@ -200,9 +218,9 @@ def _detect_lanes(image, src, dst, abs_kernel, abs_thresh, mag_kernel, mag_thres
     # gradxy[((gradx == 1)|(grady == 1))] = 1
     # magdir = np.zeros_like(dir_binary)
     # magdir[(mag_binary==1)&(dir_binary==1)] = 1
-    #
-    scipy.misc.imsave('output_images/unwrap.png', unwrap)
-    scipy.misc.imsave('output_images/color_thres.png', color_image*255)
+
+    # scipy.misc.imsave('output_images/unwrap.png', unwrap)
+    # scipy.misc.imsave('output_images/color_thres.png', color_image)
     # scipy.misc.imsave('output_images/out_gradxy.png', gradxy)
     # scipy.misc.imsave('output_images/out_dir.png', dir_binary)
     # scipy.misc.imsave('output_images/out_mag.png', mag_binary)
@@ -241,21 +259,17 @@ def detect_lanes(image):
     margin = 30 # Set the width of the windows +/- margin
     minpix = 15 # Set minimum number of pixels found to recenter window
 
-    line_color = (255, 255, 0) # default yellow
-    line_thicknesss = 8 # unit: pixel
+    line_color = (0, 255, 0) # default yellow
+    line_thicknesss = 15 # unit: pixel
 
     return _detect_lanes(image, src, dst, abs_kernel, abs_thresh, mag_kernel, mag_thresh, dir_kernel, dir_thresh, red_thresh, sat_thresh, nwindows, margin, minpix, line_color, line_thicknesss)
-
-# clip = VideoFileClip("project_video.mp4")
-# clip_out = clip.fl_image(draw_line)
-# clip_out.write_videofile("output_images/out_video.mp4", audio=False)
 
 if __name__ == '__main__':
     # Read images
     # straight = mpimg.imread('test_images/straight_lines1.jpg')
     # image = mpimg.imread('test_images/test4.jpg')
-    image = mpimg.imread('test_images/extracted-0.7.jpg')
-    # np.set_printoptions(edgeitems=30, linewidth=100000, formatter=dict(float=lambda x: "%.3g" % x))
+    image = mpimg.imread('test_images/extracted-0.4.jpg')
+    np.set_printoptions(edgeitems=30, linewidth=100000, formatter=dict(float=lambda x: "%.3g" % x))
 
     # Read in the saved objpoints and imgpoints
     with open('points_dist_pickle.p', 'rb') as handle:
@@ -263,3 +277,7 @@ if __name__ == '__main__':
     objpoints = dist_pickle["objpoints"]
     imgpoints = dist_pickle["imgpoints"]
     detect_lanes(image)
+
+    # clip = VideoFileClip("challenge_video.mp4")
+    # clip_out = clip.fl_image(detect_lanes)
+    # clip_out.write_videofile("output_images/out_video.mp4", audio=False)
